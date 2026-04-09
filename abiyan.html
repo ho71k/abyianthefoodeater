@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
   <meta charset="UTF-8">
   <title>Abiyan Quest</title>
@@ -289,8 +290,21 @@ const App = () => {
       requestRef.current = requestAnimationFrame(animate);
     };
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const resizeCanvas = () => {
+  const dpr = window.devicePixelRatio || 1;
+
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+
+  canvas.style.width = window.innerWidth + "px";
+  canvas.style.height = window.innerHeight + "px";
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+};
+
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current);
   }, [gameState, level, abiyanSize, health]);
@@ -368,6 +382,7 @@ const App = () => {
         onMouseMove={(e) => playerX.current = e.clientX}
         onMouseDown={fart}
         className="w-full h-full"
+        playerX.current = Math.max(30, Math.min(window.innerWidth - 30, playerX.current));
       />
     </div>
   );
