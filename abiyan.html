@@ -290,8 +290,7 @@ const App = () => {
     };
 
     canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
+    canvas.height = window.innerHeight;
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current);
   }, [gameState, level, abiyanSize, health]);
@@ -369,7 +368,6 @@ canvas.height = window.innerHeight;
         onMouseMove={(e) => playerX.current = e.clientX}
         onMouseDown={fart}
         className="w-full h-full"
-        playerX.current = Math.max(30, Math.min(window.innerWidth - 30, playerX.current));
       />
     </div>
   );
