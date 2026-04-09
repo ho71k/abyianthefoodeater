@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <title>Abiyan Quest</title>
+
+  <!-- React from CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+  <!-- Babel (lets browser understand JSX) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+
+<body style="margin:0;">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+
+const App = () => {
+  const [gameState, setGameState] = useState('START'); 
+  const [level, setLevel] = useState(1);
+  const [health, setHealth] = useState(100);
+  const [abiyanSize, setAbiyanSize] = useState(1.0);
+  const [bossHp, setBossHp] = useState(300);
+  const [isMuted, setIsMuted] = useState(false);
+  
+  const canvasRef = useRef(null);
+  const requestRef = useRef();
+  const audioRef = useRef(null);
+  
+  const JUNK = ['🍔', '🍕', '🍟', '🍩', '🍗'];
+  const HEALTHY = ['🥦', '🥗', '🍎'];
+  const playerX = useRef(window.innerWidth / 2);
+  const items = useRef([]);
+  const projectiles = useRef([]);
+  const clouds = useRef([]);
+  const boss = useRef(null);
+  const faceImgRef = useRef(null);
+  
+  /** * LOCAL SETUP INSTRUCTIONS:
+   * 1. Save your audio file as "music.mp3" in your project folder.
+   * 2. Save your face image as "face.jpg" in your project folder.
+   */
+  const MUSIC_URL = "music.mp3"; 
+  const FACE_URL = "face.jpg";
+
+  const resetForNextLevel = (newLvl) => {
+    setLevel(newLvl);
+    setAbiyanSize(1.0);
+    items.current = [];
+    projectiles.current = [];
+    clouds.current = [];
+    boss.current = null;
+    playerX.current = window.innerWidth / 2;
+  };
+
+  const handleStart = () => {
+    if (gameState === 'GAME_OVER') {
+      setHealth(100);
+      resetForNextLevel(1);
+    }
+    setGameState('PLAYING');
+    
+    // Attempt to play music
+    if (audioRef.current) {
+      audioRef.current.volume = 0.5;
+      audioRef.current.play().catch(e => {
+        console.error("Audio failed to play. Ensure music.mp3 is in the folder.", e);
+      });
+    }
+  };
+
+  const fart = () => {
+    if (gameState !== 'PLAYING') return;
+    clouds.current.push({
+      x: playerX.current,
+      y: window.innerHeight - (110 * abiyanSize),
+      r: 45 * abiyanSize,
+      opacity: 0.8,
+      isShield: true
+    });
+  };
+
+  useEffect(() => {
+    // Load Abiyan's Face from local file
+    const img = new Image();
+    img.src = FACE_URL;
+    img.onload = () => { faceImgRef.current = img; };
+    img.onerror = () => { console.warn("face.jpg not found. Using fallback."); };
+
+    // Setup Background Music from local file
+    const audio = new Audio(MUSIC_URL);
+    audio.loop = true;
+    audioRef.current = audio;
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.muted = isMuted;
+  }, [isMuted]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const animate = () => {
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Sky and Grass
+      ctx.fillStyle = "#87ceeb";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#4caf50";
+      ctx.fillRect(0, canvas.height * 0.75, canvas.width, canvas.height * 0.25);
+
+      if (gameState === 'PLAYING') {
+        // Boss Logic
+        if (level % 2 === 0 && !boss.current) {
+          const maxHp = 300 + (level * 50);
+          boss.current = {
+            x: canvas.width / 2,
+            y: 150,
+            hp: maxHp,
+            maxHp: maxHp,
+            dir: 1,
+            speed: 3.5 + (level * 0.2),
+            noseLen: 20,
+            attackTimer: 0
+          };
+          setBossHp(maxHp);
+        }
+
+        // Items
+        if (!boss.current && Math.random() < 0.02) {
+          const isHealthy = Math.random() > 0.85;
+          items.current.push({
+            x: Math.random() * canvas.width,
+            y: -50,
+            emoji: isHealthy ? HEALTHY[Math.floor(Math.random() * HEALTHY.length)] : JUNK[Math.floor(Math.random() * JUNK.length)],
+            isHealthy,
+            speed: 4 + (level * 0.5)
+          });
+        }
+
+        // Update Boss
+        if (boss.current) {
+          const b = boss.current;
+          b.x += b.speed * b.dir;
+          if (b.x > canvas.width - 60 || b.x < 60) b.dir *= -1;
+          
+          b.attackTimer++;
+          b.noseLen = Math.abs(Math.sin(b.attackTimer * 0.05)) * 140;
+
+          let noseBlocked = false;
+          const noseTipY = b.y + 40 + b.noseLen;
+          for(let cloud of clouds.current) {
+            const dist = Math.sqrt((b.x - cloud.x)**2 + (noseTipY - cloud.y)**2);
+            if (dist < cloud.r) noseBlocked = true;
+          }
+
+          ctx.save();
+          ctx.translate(b.x, b.y);
+          ctx.fillStyle = '#1e293b'; 
+          ctx.beginPath(); ctx.roundRect(-40, 20, 80, 100, 15); ctx.fill();
+          ctx.fillStyle = '#ffdbac'; 
+          ctx.beginPath(); ctx.arc(0, 0, 50, 0, Math.PI * 2); ctx.fill();
+
+          ctx.fillStyle = noseBlocked ? '#4ade80' : '#f1c27d';
+          ctx.beginPath();
+          ctx.moveTo(-12, 5); ctx.lineTo(12, 5); ctx.lineTo(8, 40 + b.noseLen); ctx.lineTo(-8, 40 + b.noseLen);
+          ctx.closePath(); ctx.fill();
+          ctx.beginPath(); ctx.arc(0, 40 + b.noseLen, 12, 0, Math.PI * 2); ctx.fill();
+          
+          ctx.fillStyle = 'black';
+          ctx.beginPath(); ctx.arc(-18, -15, 6, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(18, -15, 6, 0, Math.PI*2); ctx.fill();
+          ctx.restore();
+
+          const abiyanY = canvas.height - (135 * abiyanSize) - 20;
+          const distToPlayer = Math.sqrt((b.x - playerX.current)**2 + (noseTipY - (abiyanY + 50))**2);
+          if (distToPlayer < 60 * abiyanSize && !noseBlocked) {
+            setHealth(prev => Math.max(0, prev - 1.5));
+            setAbiyanSize(prev => Math.max(0.7, prev - 0.005));
+          }
+
+          if (b.attackTimer % 45 === 0) {
+            projectiles.current.push({ x: playerX.current, y: canvas.height - 120, vy: -14, emoji: '🍟' });
+          }
+          
+          if (b.hp <= 0) {
+            setGameState('LEVEL_UP');
+            resetForNextLevel(level + 1);
+            return;
+          }
+        }
+
+        // Projectiles
+        for (let i = projectiles.current.length - 1; i >= 0; i--) {
+          const p = projectiles.current[i];
+          p.y += p.vy;
+          ctx.font = '34px Arial';
+          ctx.fillText(p.emoji, p.x, p.y);
+          if (boss.current && Math.abs(p.x - boss.current.x) < 55 && Math.abs(p.y - boss.current.y) < 110) {
+            boss.current.hp -= 20;
+            setBossHp(boss.current.hp);
+            setAbiyanSize(prev => Math.min(5, prev + 0.02)); 
+            projectiles.current.splice(i, 1);
+          }
+        }
+
+        // Farts
+        for (let i = clouds.current.length - 1; i >= 0; i--) {
+          const c = clouds.current[i];
+          c.opacity -= 0.012;
+          c.r += 1.5;
+          ctx.fillStyle = `rgba(100, 200, 0, ${c.opacity})`;
+          ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.fill();
+          
+          if (boss.current && Math.abs(c.x - boss.current.x) < c.r + 40 && Math.abs(c.y - (boss.current.y + 60)) < c.r + 60) {
+            boss.current.hp -= 1.5;
+            setBossHp(boss.current.hp);
+            setAbiyanSize(prev => Math.min(5, prev + 0.005));
+          }
+          
+          if (c.opacity <= 0) clouds.current.splice(i, 1);
+        }
+
+        // Items
+        for (let i = items.current.length - 1; i >= 0; i--) {
+          const item = items.current[i];
+          item.y += item.speed;
+          ctx.font = `${Math.max(24, 34 * abiyanSize)}px Arial`;
+          ctx.fillText(item.emoji, item.x, item.y);
+          const pY = canvas.height - (130 * abiyanSize) - 20;
+          const dist = Math.sqrt((item.x - playerX.current)**2 + (item.y - (pY + 50))**2);
+          if (dist < 60 * abiyanSize) {
+            if (item.isHealthy) {
+              setHealth(prev => Math.max(0, prev - 15));
+              setAbiyanSize(prev => Math.max(0.6, prev - 0.2));
+            } else {
+              setAbiyanSize(prev => prev + (0.08 * Math.pow(0.5, level-1)));
+            }
+            items.current.splice(i, 1);
+          } else if (item.y > canvas.height + 50) items.current.splice(i, 1);
+        }
+
+        if (abiyanSize >= level * 2.0 && !boss.current) {
+          setGameState('LEVEL_UP');
+          resetForNextLevel(level + 1);
+          return;
+        }
+        if (health <= 0) setGameState('GAME_OVER');
+
+        // Draw Abiyan
+        const h = 140 * abiyanSize;
+        const w = 115 * abiyanSize;
+        const yP = canvas.height - h - 20;
+        ctx.save();
+        ctx.translate(playerX.current, yP);
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath(); ctx.roundRect(-w/2, 45*abiyanSize, w, 95*abiyanSize, 25*abiyanSize); ctx.fill();
+
+        const headR = 55 * abiyanSize;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(0, 5*abiyanSize, headR, 0, Math.PI * 2); ctx.clip();
+        if (faceImgRef.current) {
+            const img = faceImgRef.current;
+            const aspect = img.width / img.height;
+            let dW = headR * 2.2, dH = headR * 2.2;
+            if (aspect > 1) dW = dH * aspect; else dH = dW / aspect;
+            ctx.drawImage(img, -dW/2, (5*abiyanSize) - dH/2, dW, dH);
+        } else { ctx.fillStyle = '#f3cfb3'; ctx.fill(); }
+        ctx.restore();
+        ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 5; ctx.stroke();
+        ctx.restore();
+      }
+
+      requestRef.current = requestAnimationFrame(animate);
+    };
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    requestRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(requestRef.current);
+  }, [gameState, level, abiyanSize, health]);
+
+  return (
+    <div className="relative w-full h-screen overflow-hidden bg-sky-300 font-black italic select-none touch-none">
+      <button 
+        onClick={() => setIsMuted(!isMuted)}
+        className="absolute bottom-6 right-6 z-[60] p-4 bg-black/60 rounded-full border-2 border-white/20 text-white"
+      >
+        {isMuted ? '🔇' : '🔊'}
+      </button>
+
+      {/* HUD */}
+      <div className="absolute top-6 left-0 right-0 flex justify-between px-6 z-20 pointer-events-none">
+        <div className="bg-black/85 p-4 rounded-3xl border-2 border-amber-400 text-white min-w-[140px] shadow-2xl">
+          <div className="text-[10px] text-amber-500 uppercase mb-1">Level {level}</div>
+          <div className="text-4xl tracking-tighter">{Math.round(abiyanSize * 100)}%</div>
+        </div>
+        <div className="bg-black/85 p-4 rounded-3xl border-2 border-red-500 text-white text-right min-w-[140px] shadow-2xl">
+          <div className="text-[10px] text-red-400 uppercase mb-1">Life</div>
+          <div className="text-4xl tracking-tighter">{Math.floor(health)}%</div>
+        </div>
+      </div>
+
+      {boss.current && (
+        <div className="absolute top-32 left-1/2 -translate-x-1/2 w-4/5 max-w-sm z-20">
+          <div className="text-center text-white text-xs uppercase mb-2 tracking-widest drop-shadow-xl">AYYAN GUJAR</div>
+          <div className="h-6 bg-black/70 rounded-full border-2 border-white overflow-hidden shadow-2xl">
+            <div 
+              className="h-full bg-gradient-to-r from-red-600 via-red-500 to-orange-400 transition-all duration-200"
+              style={{ width: `${(bossHp / (300 + level * 50)) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Screens */}
+      {gameState !== 'PLAYING' && (
+        <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center z-50 p-6 text-center">
+          <h1 className="text-8xl font-black text-amber-500 italic mb-8 drop-shadow-[0_10px_0_#92400e] tracking-tighter leading-none">ABIYAN<br/>QUEST</h1>
+          
+          {gameState === 'START' && (
+            <>
+              <div className="bg-white/10 p-10 rounded-[50px] mb-12 border border-white/20 max-w-md backdrop-blur-lg">
+                <p className="text-3xl text-white mb-6">🍔 JUNK = <span className="text-amber-400">BIGGER</span></p>
+                <p className="text-3xl text-red-500 mb-10">🥦 VEG = <span className="underline">FATAL</span></p>
+                <p className="text-amber-200 text-xl font-bold italic underline">💨 FART TO DEFLECT THE NOSE!</p>
+              </div>
+              <button onClick={handleStart} className="px-24 py-10 bg-amber-500 text-black font-black text-5xl rounded-full shadow-[0_15px_0_#92400e] active:translate-y-3 active:shadow-none transition-all">PLAY NOW</button>
+            </>
+          )}
+
+          {gameState === 'LEVEL_UP' && (
+            <>
+              <h2 className="text-7xl font-black text-white mb-8 tracking-tighter italic">LEVEL UP!</h2>
+              <p className="text-4xl text-amber-400 mb-14 uppercase">Entering Level {level}</p>
+              <button onClick={handleStart} className="px-20 py-8 bg-amber-500 text-black font-black text-4xl rounded-full shadow-[0_10px_0_#92400e]">CONTINUE</button>
+            </>
+          )}
+
+          {gameState === 'GAME_OVER' && (
+            <>
+              <h2 className="text-9xl font-black text-red-600 mb-10 drop-shadow-[0_8px_0_#450a0a]">DEFEAT</h2>
+              <p className="text-4xl text-white mb-16">Final Level: {level}</p>
+              <button onClick={handleStart} className="px-24 py-10 bg-red-600 text-white font-black text-5xl rounded-full shadow-[0_15px_0_#7f1d1d] active:translate-y-3 active:shadow-none">RETRY</button>
+            </>
+          )}
+        </div>
+      )}
+
+      <canvas 
+        ref={canvasRef} 
+        onTouchMove={(e) => playerX.current = e.touches[0].clientX}
+        onMouseMove={(e) => playerX.current = e.clientX}
+        onMouseDown={fart}
+        className="w-full h-full"
+      />
+    </div>
+  );
+};
+
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
