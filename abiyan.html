@@ -290,20 +290,8 @@ const App = () => {
       requestRef.current = requestAnimationFrame(animate);
     };
 
-    const resizeCanvas = () => {
-  const dpr = window.devicePixelRatio || 1;
-
-  canvas.width = window.innerWidth * dpr;
-  canvas.height = window.innerHeight * dpr;
-
-  canvas.style.width = window.innerWidth + "px";
-  canvas.style.height = window.innerHeight + "px";
-
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-};
-
-resizeCanvas();
-window.addEventListener("resize", resizeCanvas);
+    canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current);
